@@ -6,8 +6,8 @@ module Data.PFA.Kumar where
 
 import Data.Traversable
 
-import Control.Concurrent.STM
 import Control.Monad
+import Data.Atomics
 import Data.Foldable
 import Data.IORef
 import Data.Maybe (fromMaybe)
@@ -65,52 +65,48 @@ debugLog (Log size (VersionVector vs) as) = do
   for [0 .. size-1] $ \i -> do
     (,) <$> (Version <$> MU.read vs i) <*> MV.read as i
 
-data PFA a = PFA !Version !(TVar Version) !(MV.IOVector a) !(MV.IOVector (Log a))
+data PFA a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (Log a))
 
 newIO :: Int -> a -> IO (PFA a)
-newIO n a = PFA v0 <$> newTVarIO v0 <*> MV.replicate n a <*> MV.replicateM n (newLog 1)
-  where
-    v0 = Version 0
+newIO n a = do
+  vRef <- newIORef (Version 0)
+  v <- readForCAS vRef
+  PFA v vRef <$> MV.replicate n a <*> MV.replicateM n (newLog 1)
 
 getIO :: PFA a -> Int -> IO a
 getIO (PFA v vRef as ls) i = do
   guess <- MV.read as i  -- Read before comparing versions
-  leaf <- do
-    v' <- readTVarIO vRef
-    return (v == v')
-  if leaf then
+  v' <- readIORef vRef
+  let v_ = peekTicket v
+  if v_ == v' then
     return guess
   else do
     l <- MV.unsafeRead ls i
-    fromMaybe guess <$> getLog l v
+    fromMaybe guess <$> getLog l v_
 
 setIO :: PFA a -> Int -> a -> IO (PFA a)
-setIO (PFA v@(Version v_) vRef as ls) i a = do
+setIO (PFA v vRef as ls) i a = do
   let n = MV.length as
-      v0 = Version 0
-  if fromIntegral v_ == n then do
-    vRef' <- newTVarIO v0
+      v_@(Version v_') = peekTicket v
+  if fromIntegral v_' == n then do
+    vRef' <- newIORef (Version 0)
+    v' <- readForCAS vRef'
     as' <- MV.clone as
     ls' <- MV.replicateM n (newLog 1)
     MV.write as' i a
-    return (PFA v0 vRef' as' ls')
+    return (PFA v' vRef' as' ls')
   else do
-    leaf <- atomically $ do  -- compare and swap
-      v' <- readTVar vRef
-      if v == v' then do
-        writeTVar vRef $! Version (v_ + 1)
-        return True
-      else
-        return False
+    (leaf, v') <- casIORef vRef v (Version (v_' + 1))
     if leaf then do
       a' <- MV.read as i
       l <- MV.unsafeRead ls i
-      l' <- pushLog l v a'
+      l' <- pushLog l v_ a'
       MV.unsafeWrite ls i l'
       MV.unsafeWrite as i a  -- In this order!
-      return (PFA (Version (v_ + 1)) vRef as ls)
+      return (PFA v' vRef as ls)
     else do
-      vRef' <- newTVarIO v0
+      vRef' <- newIORef (Version 0)
+      v0' <- readForCAS vRef'
       let generate n f = do
             as' <- MV.unsafeNew n
             for_ [0 .. n-1] $ \i -> do
@@ -119,17 +115,17 @@ setIO (PFA v@(Version v_) vRef as ls) i a = do
             return as'
       as' <- generate n (\i -> do
         l <- MV.unsafeRead ls i
-        a' <- getLog l v
+        a' <- getLog l v_
         case a' of
           Nothing -> MV.unsafeRead as i
           Just a -> return a)
       ls' <- MV.replicateM n (newLog 1)
       MV.write as' i a
-      return (PFA v0 vRef' as' ls')
+      return (PFA v0' vRef' as' ls')
 
 debugIO :: Show a => PFA a -> IO ()
 debugIO (PFA v vRef as ls) = do
-  v' <- readTVarIO vRef
+  v' <- readIORef vRef
   as_ <- traverse (\i -> MV.read as i) [0 .. MV.length as - 1]
   ls_ <- traverse (\i -> MV.read ls i >>= debugLog) [0 .. MV.length ls - 1]
   print $ "V: " ++ show (v, v', as_, ls_)
