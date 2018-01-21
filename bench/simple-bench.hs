@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 import Control.Monad.Random.Class
 import Data.Function (fix)
@@ -15,7 +16,7 @@ import qualified Data.PFA.Internal.Log.Vector as LogV
 import qualified Data.PFA.Internal.Log.Chunks as LogC
 
 -- A wrapper for vector contents we don't really care about.
-newtype A = A Int
+newtype A = A Int deriving (Eq, Show)
 
 -- PFA implementations
 data PFADict v a = PFADict
@@ -75,13 +76,13 @@ allModes :: [Mode]
 allModes = [GetOnly, SetOnly, GetAndSet]
 {-# INLINE allModes #-}
 
-benchPFA
+runPFA
   :: PFADict v A
   -> Mode
   -> Int           -- ^ Length of vectors
   -> U.Vector Int  -- ^ Random values less than length
   -> IO A
-benchPFA pfa mode n xs = do
+runPFA pfa mode n xs = do
   v0 <- new pfa n (A 0)  -- just a dummy value
   let setThen k !a !i v =
         if i < U.length xs then
@@ -95,7 +96,7 @@ benchPFA pfa mode n xs = do
     GetOnly -> fix getThen (A 0) 0 v0
     SetOnly -> fix setThen (A 0) 0 v0
     GetAndSet -> fix (setThen . getThen) (A 0) 0 v0
-{-# INLINE benchPFA #-}
+{-# INLINE runPFA #-}
 
 -- Weird @flip map@ with explicit cases for inlining.
 (<&>) :: [a] -> (a -> b) -> [b]
@@ -114,17 +115,37 @@ main = defaultMain $
 
 run :: Int -> Mode -> Benchmark
 run n mode =
-  env (U.replicateM 1000 (getRandomR (0, n-1))) $ \xs ->
+  env (generate n mode) $ \xs ->
     bgroup (show mode) $
       let groupWith name pfa =
-            bench name . whnfIO $ benchPFA pfa mode n xs
+            bench name . whnfIO $ runPFA pfa mode n xs
           {-# INLINE groupWith #-}
       in
-      [ groupWith "baseline" baselinePFA
-      , groupWith "unboxed"  unboxedPFA
-      , groupWith "vector"   vectorPFA
-      , groupWith "original" (originalPFA :: PFADict (PFA LogV.Log A) A)
-      , groupWith "chunks"   (originalPFA :: PFADict (PFA LogC.Log A) A)
-      , groupWith "map"      mapPFA
-      ]
+      groupWith "baseline" baselinePFA : zipTests groupWith
 {-# INLINE run #-}
+
+generate :: Int -> Mode -> IO (U.Vector Int)
+generate n mode = do
+  xs <- U.replicateM 1000 (getRandomR (0, n-1))
+  sanityCheck n mode xs
+  return xs
+
+sanityCheck :: Int -> Mode -> U.Vector Int -> IO ()
+sanityCheck n mode xs = do
+  ys <- sequence $ zipTests $ \_ pfa -> runPFA pfa mode n xs
+  if and (zipWith (==) ys (tail ys)) then
+    return ()
+  else do
+    print ys
+    error "sanityCheck: failure"
+
+-- Do something for all pseudo-PFA implementations and collect the results
+zipTests :: (forall v. String -> PFADict v A -> r) -> [r]
+zipTests with =
+  [ with "unboxed"  unboxedPFA
+  , with "vector"   vectorPFA
+  , with "original" (originalPFA :: PFADict (PFA LogV.Log A) A)
+  , with "chunks"   (originalPFA :: PFADict (PFA LogC.Log A) A)
+  , with "map"      mapPFA
+  ]
+{-# INLINE zipTests #-}
