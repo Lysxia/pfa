@@ -39,6 +39,7 @@ benchmark simple-bench
   type: exitcode-stdio-1.0
   hs-source-dirs: bench
   main-is: simple-bench.hs
+  ghc-options: -O2
   build-depends:
     pfa,
     containers,
