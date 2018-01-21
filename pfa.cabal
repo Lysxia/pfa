@@ -17,10 +17,13 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Data.PFA.Kumar
+    Data.PFA.Internal.Log.Class
+    Data.PFA.Internal.Log.Vector
   build-depends:
     atomic-primops,
     vector,
     base >= 4.9 && < 5
+  ghc-options: -Wall -Wno-name-shadowing
   default-language:    Haskell2010
 
 test-suite simple-test
