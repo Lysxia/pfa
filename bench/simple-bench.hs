@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 import Control.Monad.Random.Class
 import Data.Function (fix)
 import qualified Data.IntMap.Strict as M
@@ -65,21 +67,21 @@ benchPFA
   -> Mode
   -> Int           -- ^ Length of vectors
   -> U.Vector Int  -- ^ Random values less than length
-  -> IO ()
+  -> IO A
 benchPFA pfa mode n xs = do
   v0 <- new pfa n (A 0)  -- just a dummy value
-  let setThen k i v =
+  let setThen k !a !i v =
         if i+1 < U.length xs then
-          set pfa v (xs U.! i) (A (xs U.! (i+1))) >>= k (i+2)
-        else return ()
-      getThen k i v =
+          set pfa v (xs U.! i) (A (xs U.! (i+1))) >>= k a (i+2)
+        else return a
+      getThen k !(A a) !i v =
         if i < U.length xs then
-          get pfa v (xs U.! i) >> k (i+1) v
-        else return ()
+          get pfa v (xs U.! i) >>= \(A a') -> k (A (a + a')) (i+1) v
+        else return (A a)
   case mode of
-    GetOnly -> fix getThen 0 v0
-    SetOnly -> fix setThen 0 v0
-    GetAndSet -> fix (setThen . getThen) 0 v0
+    GetOnly -> fix getThen (A 0) 0 v0
+    SetOnly -> fix setThen (A 0) 0 v0
+    GetAndSet -> fix (setThen . getThen) (A 0) 0 v0
 {-# INLINE benchPFA #-}
 
 -- Weird @flip map@ with explicit cases for inlining.
