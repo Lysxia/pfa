@@ -71,8 +71,8 @@ benchPFA
 benchPFA pfa mode n xs = do
   v0 <- new pfa n (A 0)  -- just a dummy value
   let setThen k !a !i v =
-        if i+1 < U.length xs then
-          set pfa v (xs U.! i) (A (xs U.! (i+1))) >>= k a (i+2)
+        if i < U.length xs then
+          set pfa v (xs U.! i) (A i) >>= k a (i+1)
         else return a
       getThen k !(A a) !i v =
         if i < U.length xs then
