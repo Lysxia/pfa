@@ -15,8 +15,14 @@ import qualified Data.PFA.Internal.Log.Chunks as LogC
 import qualified Data.PFA.Internal.Log.Vector as LogV
 import Data.PFA.Internal.Version
 
-data PFA log a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (log a))
+data PFA log a
+  = PFA
+      !(Ticket Version)       -- ^ This node's version
+      !(IORef Version)        -- ^ Leaf version
+      !(MV.IOVector a)        -- ^ Leaf vector
+      !(MV.IOVector (log a))  -- ^ Logs
 
+-- | @newIO n a@: Return an immutable array of length @n@ initialized with @a@.
 newIO :: Logging log => Int -> a -> IO (PFA log a)
 newIO n a = do
   vRef <- newIORef (Version 0)
@@ -25,6 +31,7 @@ newIO n a = do
 {-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogV.Log a) #-}
 {-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogC.Log a) #-}
 
+-- | @getIO v i@: Get the value at index @i@.
 getIO :: Logging log => PFA log a -> Int -> IO a
 getIO (PFA v vRef as ls) i = do
   guess <- MV.read as i  -- Read before comparing versions
@@ -38,6 +45,15 @@ getIO (PFA v vRef as ls) i = do
 {-# SPECIALIZE getIO :: PFA LogV.Log a -> Int -> IO a #-}
 {-# SPECIALIZE getIO :: PFA LogC.Log a -> Int -> IO a #-}
 
+-- | @setIO v i a@: Create an updated copy of @v@ where the @i@-th element is @a@.
+--
+-- @v@ still denotes the same sequence as before the update.
+--
+-- > do getIO v i
+-- >    setIO v i a1  -- ignore new array
+-- >    getIO v i
+-- > =
+-- > getIO v i
 setIO :: Logging log => PFA log a -> Int -> a -> IO (PFA log a)
 setIO (PFA v vRef as ls) i a = do
   let n = MV.length as
