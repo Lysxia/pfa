@@ -17,7 +17,9 @@ import Data.PFA.Internal.Version
 
 data PFA log a
   = PFA
-      !(Ticket Version)       -- ^ This node's version
+      (Ticket Version)
+      -- ^ This node's version
+      -- (TODO: why does keeping this lazy make microbenchmarks faster?)
       !(IORef Version)        -- ^ Leaf version
       !(MV.IOVector a)        -- ^ Leaf vector
       !(MV.IOVector (log a))  -- ^ Logs
