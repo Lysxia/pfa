@@ -11,19 +11,19 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Vector.Mutable as MV
 
 import Data.PFA.Internal.Log.Class
-import Data.PFA.Internal.Log.Vector
+import qualified Data.PFA.Internal.Log.Chunks as LogC
+import qualified Data.PFA.Internal.Log.Vector as LogV
 import Data.PFA.Internal.Version
 
 data PFA log a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (log a))
-
-type PFA' = PFA Log
 
 newIO :: Logging log => Int -> a -> IO (PFA log a)
 newIO n a = do
   vRef <- newIORef (Version 0)
   v <- readForCAS vRef
   PFA v vRef <$> MV.replicate n a <*> MV.replicateM n (newLog 1)
-{-# SPECIALIZE newIO :: Int -> a -> IO (PFA Log a) #-}
+{-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogV.Log a) #-}
+{-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogC.Log a) #-}
 
 getIO :: Logging log => PFA log a -> Int -> IO a
 getIO (PFA v vRef as ls) i = do
@@ -35,7 +35,8 @@ getIO (PFA v vRef as ls) i = do
   else do
     l <- MV.unsafeRead ls i
     fromMaybe guess <$> getLog l v_
-{-# SPECIALIZE getIO :: PFA Log a -> Int -> IO a #-}
+{-# SPECIALIZE getIO :: PFA LogV.Log a -> Int -> IO a #-}
+{-# SPECIALIZE getIO :: PFA LogC.Log a -> Int -> IO a #-}
 
 setIO :: Logging log => PFA log a -> Int -> a -> IO (PFA log a)
 setIO (PFA v vRef as ls) i a = do
@@ -75,11 +76,12 @@ setIO (PFA v vRef as ls) i a = do
       ls' <- MV.replicateM n (newLog 1)
       MV.write as' i a
       return (PFA v0' vRef' as' ls')
-{-# SPECIALIZE setIO :: PFA Log a -> Int -> a -> IO (PFA Log a) #-}
+{-# SPECIALIZE setIO :: PFA LogV.Log a -> Int -> a -> IO (PFA LogV.Log a) #-}
+{-# SPECIALIZE setIO :: PFA LogC.Log a -> Int -> a -> IO (PFA LogC.Log a) #-}
 
-debugIO :: Show a => PFA Log a -> IO ()
+debugIO :: Show a => PFA LogV.Log a -> IO ()
 debugIO (PFA v vRef as ls) = do
   v' <- readIORef vRef
   as_ <- traverse (\i -> MV.read as i) [0 .. MV.length as - 1]
-  ls_ <- traverse (\i -> MV.read ls i >>= debugLog) [0 .. MV.length ls - 1]
+  ls_ <- traverse (\i -> MV.read ls i >>= LogV.debugLog) [0 .. MV.length ls - 1]
   print $ "V: " ++ show (v, v', as_, ls_)

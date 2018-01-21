@@ -10,6 +10,9 @@ import qualified Data.Vector.Unboxed.Mutable as MU
 import Criterion.Main
 
 import Data.PFA.Kumar
+import Data.PFA.Internal.Log.Class
+import qualified Data.PFA.Internal.Log.Vector as LogV
+import qualified Data.PFA.Internal.Log.Chunks as LogC
 
 -- A wrapper for vector contents we don't really care about.
 newtype A = A Int
@@ -32,8 +35,10 @@ baselinePFA = PFADict
 {-# INLINE baselinePFA #-}
 
 -- The original implementation
-originalPFA :: PFADict (PFA' a) a
+originalPFA :: Logging log => PFADict (PFA log a) a
 originalPFA = PFADict newIO getIO setIO
+{-# SPECIALIZE originalPFA :: PFADict (PFA LogV.Log a) a #-}
+{-# SPECIALIZE originalPFA :: PFADict (PFA LogC.Log a) a #-}
 {-# INLINE originalPFA #-}
 
 -- A mutable vector implementation with destructive updates:
@@ -118,7 +123,8 @@ run n mode =
       [ groupWith "baseline" baselinePFA
       , groupWith "unboxed"  unboxedPFA
       , groupWith "vector"   vectorPFA
-      , groupWith "original" originalPFA
+      , groupWith "original" (originalPFA :: PFADict (PFA LogV.Log A) A)
+      , groupWith "chunks"   (originalPFA :: PFADict (PFA LogC.Log A) A)
       , groupWith "map"      mapPFA
       ]
 {-# INLINE run #-}

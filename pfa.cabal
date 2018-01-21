@@ -18,6 +18,7 @@ library
   exposed-modules:
     Data.PFA.Kumar
     Data.PFA.Internal.Log.Class
+    Data.PFA.Internal.Log.Chunks
     Data.PFA.Internal.Log.Vector
     Data.PFA.Internal.Version
   build-depends:
