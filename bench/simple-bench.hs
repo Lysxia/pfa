@@ -3,6 +3,7 @@
 import Control.Monad.Random.Class
 import Data.Function (fix)
 import qualified Data.IntMap.Strict as M
+import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as MU
 
@@ -37,8 +38,15 @@ originalPFA = PFADict newIO getIO setIO
 
 -- A mutable vector implementation with destructive updates:
 -- must not be used nonlinearly.
-vectorPFA :: PFADict (MU.IOVector Int) A
+vectorPFA :: PFADict (MV.IOVector Int) A
 vectorPFA = PFADict
+  { new = \n (A a) -> MV.replicate n a
+  , get = \v i -> A <$> MV.read v i
+  , set = \v i (A a) -> MV.write v i a >> return v
+  }
+
+unboxedPFA :: PFADict (MU.IOVector Int) A
+unboxedPFA = PFADict
   { new = \n (A a) -> MU.replicate n a
   , get = \v i -> A <$> MU.read v i
   , set = \v i (A a) -> MU.write v i a >> return v
@@ -108,6 +116,7 @@ run n mode =
           {-# INLINE groupWith #-}
       in
       [ groupWith "baseline" baselinePFA
+      , groupWith "unboxed"  unboxedPFA
       , groupWith "vector"   vectorPFA
       , groupWith "original" originalPFA
       , groupWith "map"      mapPFA
