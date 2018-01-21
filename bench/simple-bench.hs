@@ -50,6 +50,7 @@ vectorPFA = PFADict
   , get = \v i -> A <$> MV.read v i
   , set = \v i (A a) -> MV.write v i a >> return v
   }
+{-# INLINE vectorPFA #-}
 
 unboxedPFA :: PFADict (MU.IOVector Int) A
 unboxedPFA = PFADict
@@ -57,7 +58,7 @@ unboxedPFA = PFADict
   , get = \v i -> A <$> MU.read v i
   , set = \v i (A a) -> MU.write v i a >> return v
   }
-{-# INLINE vectorPFA #-}
+{-# INLINE unboxedPFA #-}
 
 -- A Map-based implementation (from containers)
 mapPFA :: PFADict (M.IntMap a) a
