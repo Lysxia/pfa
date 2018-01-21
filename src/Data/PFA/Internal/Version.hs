@@ -20,7 +20,7 @@ newtype VersionVector = VersionVector PreVV
 type PreVV = MU.IOVector Word
 
 lengthVV :: VersionVector -> Int
-lengthVV (VersionVector vs_) = MU.length vs_
+lengthVV = coerce (MU.length :: PreVV -> Int)
 
 -- | Allocate a 'VersionVector'.
 newVV :: Int -> IO VersionVector
