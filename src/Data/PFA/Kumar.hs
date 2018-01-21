@@ -29,7 +29,7 @@ newIO :: Logging log => Int -> a -> IO (PFA log a)
 newIO n a = do
   vRef <- newIORef (Version 0)
   v <- readForCAS vRef
-  PFA v vRef <$> MV.replicate n a <*> MV.replicateM n (newLog 1)
+  PFA v vRef <$> MV.replicate n a <*> MV.replicateM n newLog
 {-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogV.Log a) #-}
 {-# SPECIALIZE newIO :: Int -> a -> IO (PFA LogC.Log a) #-}
 
@@ -47,6 +47,9 @@ getIO (PFA v vRef as ls) i = do
 {-# SPECIALIZE getIO :: PFA LogV.Log a -> Int -> IO a #-}
 {-# SPECIALIZE getIO :: PFA LogC.Log a -> Int -> IO a #-}
 
+renewFactor :: Int
+renewFactor = 4
+
 -- | @setIO v i a@: Create an updated copy of @v@ where the @i@-th element is @a@.
 --
 -- @v@ still denotes the same sequence as before the update.
@@ -60,11 +63,11 @@ setIO :: Logging log => PFA log a -> Int -> a -> IO (PFA log a)
 setIO (PFA v vRef as ls) i a = do
   let n = MV.length as
       v_@(Version v_') = peekTicket v
-  if fromIntegral v_' == n then do
+  if fromIntegral v_' == renewFactor * n then do
     vRef' <- newIORef (Version 0)
     v' <- readForCAS vRef'
     as' <- MV.clone as
-    ls' <- MV.replicateM n (newLog 1)
+    ls' <- MV.replicateM n newLog
     MV.write as' i a
     return (PFA v' vRef' as' ls')
   else do
@@ -91,7 +94,7 @@ setIO (PFA v vRef as ls) i a = do
         case a' of
           Nothing -> MV.unsafeRead as i
           Just a -> return a)
-      ls' <- MV.replicateM n (newLog 1)
+      ls' <- MV.replicateM n newLog
       MV.write as' i a
       return (PFA v0' vRef' as' ls')
 {-# SPECIALIZE setIO :: PFA LogV.Log a -> Int -> a -> IO (PFA LogV.Log a) #-}

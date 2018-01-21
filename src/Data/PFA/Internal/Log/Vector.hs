@@ -13,9 +13,14 @@ type Size = Int
 -- and the size is less than or equal to the capacity.
 data Log a = Log !Size !VersionVector !(MV.IOVector a)
 
-newLog_ :: Int -> IO (Log a)
-newLog_ n =
-  Log 0 <$> newVV n <*> MV.new n
+initialCapacity :: Int
+initialCapacity = 10
+
+newLog_ :: IO (Log a)
+newLog_ = newLog_' initialCapacity
+
+newLog_' :: Int -> IO (Log a)
+newLog_' cap = Log 0 <$> newVV cap <*> MV.new cap
 
 pushLog_ :: Log a -> Version -> a -> IO (Log a)
 pushLog_ (Log size vs@(VersionVector vs_) as) v a = do
@@ -24,7 +29,7 @@ pushLog_ (Log size vs@(VersionVector vs_) as) v a = do
         MV.unsafeWrite as size a
         return (Log (size + 1) vs as)
   if size == lengthVV vs then do
-    Log _ vs'@(VersionVector vs_') as' <- newLog (size * 2)
+    Log _ vs'@(VersionVector vs_') as' <- newLog_' (size * 2)
     MU.unsafeCopy (MU.unsafeSlice 0 size vs_') vs_
     MV.unsafeCopy (MV.unsafeSlice 0 size as') as
     push vs' as'

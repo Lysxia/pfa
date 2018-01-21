@@ -11,8 +11,8 @@ data Log a
   = Chunk !Size !VersionVector !(MV.IOVector a) !(Log a)
   | Nil
 
-newLog_ :: Int -> IO (Log a)
-newLog_ _ = return Nil
+newLog_ :: IO (Log a)
+newLog_ = return Nil
 
 getLog_ :: Log a -> Version -> IO (Maybe a)
 getLog_ c v = getLog_' c v (return Nothing)
@@ -35,8 +35,11 @@ getLog_' c v def = case c of
 getLog_'' :: Log a -> Version -> MV.IOVector a -> IO (Maybe a)
 getLog_'' c v as = getLog_' c v (Just <$> MV.unsafeRead as 0)
 
+initialCapacity :: Int
+initialCapacity = 4
+
 pushLog_ :: Log a -> Version -> a -> IO (Log a)
-pushLog_ Nil v a = newChunk 4 v a Nil
+pushLog_ Nil v a = newChunk initialCapacity v a Nil
 pushLog_ c@(Chunk size vs _  _) v a | size == lengthVV vs = newChunk (size * 2) v a c
 pushLog_ (Chunk size vs as c) v a = do
   unsafeWriteVV vs size v

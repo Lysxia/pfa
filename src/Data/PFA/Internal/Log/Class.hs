@@ -8,6 +8,6 @@ module Data.PFA.Internal.Log.Class
 import Data.PFA.Internal.Version
 
 class Logging log where
-  newLog :: Int -> IO (log a)
+  newLog :: IO (log a)
   pushLog :: log a -> Version -> a -> IO (log a)
   getLog :: log a -> Version -> IO (Maybe a)
