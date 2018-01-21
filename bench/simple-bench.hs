@@ -31,7 +31,7 @@ baselinePFA = PFADict
 {-# INLINE baselinePFA #-}
 
 -- The original implementation
-originalPFA :: PFADict (PFA a) a
+originalPFA :: PFADict (PFA Log a) a
 originalPFA = PFADict newIO getIO setIO
 {-# INLINE originalPFA #-}
 

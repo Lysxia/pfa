@@ -8,7 +8,7 @@ aeq a b
 
 main = do
   v0 <- newIO 3 (20 :: Int)
-  x <- getIO v0 0
+  x <- getIO (v0 :: PFA Log Int) 0
   aeq x 20
   v1 <- setIO v0 1 30
   v2 <- setIO v1 1 40

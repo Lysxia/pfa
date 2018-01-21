@@ -24,12 +24,12 @@ newtype VersionVector = VersionVector (MU.IOVector Word)
 -- and the size is less than or equal to the capacity.
 data Log a = Log !Size !VersionVector !(MV.IOVector a)
 
-newLog :: Int -> IO (Log a)
-newLog n =
+newLog_ :: Int -> IO (Log a)
+newLog_ n =
   Log 0 <$> (VersionVector <$> MU.new n) <*> MV.new n
 
-pushLog :: Log a -> Version -> a -> IO (Log a)
-pushLog log@(Log size (VersionVector vs_) as) (Version v_) a = do
+pushLog_ :: Log a -> Version -> a -> IO (Log a)
+pushLog_ log@(Log size (VersionVector vs_) as) (Version v_) a = do
   let push vs_ as = do
         MU.unsafeWrite vs_ size v_ :: IO ()
         MV.unsafeWrite as size a
@@ -42,8 +42,8 @@ pushLog log@(Log size (VersionVector vs_) as) (Version v_) a = do
   else do
     push vs_ as
 
-getLog :: Log a -> Version -> IO (Maybe a)
-getLog (Log size (VersionVector vs) as) (Version v) = do
+getLog_ :: Log a -> Version -> IO (Maybe a)
+getLog_ (Log size (VersionVector vs) as) (Version v) = do
   let search :: Int -> Int -> IO Int
       search i j
         | i == j = return i
@@ -65,15 +65,26 @@ debugLog (Log size (VersionVector vs) as) = do
   for [0 .. size-1] $ \i -> do
     (,) <$> (Version <$> MU.read vs i) <*> MV.read as i
 
-data PFA a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (Log a))
+class Logging log where
+  newLog :: Int -> IO (log a)
+  pushLog :: log a -> Version -> a -> IO (log a)
+  getLog :: log a -> Version -> IO (Maybe a)
 
-newIO :: Int -> a -> IO (PFA a)
+instance Logging Log where
+  newLog = newLog_
+  pushLog = pushLog_
+  getLog = getLog_
+
+data PFA log a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (log a))
+
+newIO :: Logging log => Int -> a -> IO (PFA log a)
 newIO n a = do
   vRef <- newIORef (Version 0)
   v <- readForCAS vRef
   PFA v vRef <$> MV.replicate n a <*> MV.replicateM n (newLog 1)
+{-# SPECIALIZE newIO :: Int -> a -> IO (PFA Log a) #-}
 
-getIO :: PFA a -> Int -> IO a
+getIO :: Logging log => PFA log a -> Int -> IO a
 getIO (PFA v vRef as ls) i = do
   guess <- MV.read as i  -- Read before comparing versions
   v' <- readIORef vRef
@@ -83,8 +94,9 @@ getIO (PFA v vRef as ls) i = do
   else do
     l <- MV.unsafeRead ls i
     fromMaybe guess <$> getLog l v_
+{-# SPECIALIZE getIO :: PFA Log a -> Int -> IO a #-}
 
-setIO :: PFA a -> Int -> a -> IO (PFA a)
+setIO :: Logging log => PFA log a -> Int -> a -> IO (PFA log a)
 setIO (PFA v vRef as ls) i a = do
   let n = MV.length as
       v_@(Version v_') = peekTicket v
@@ -122,8 +134,9 @@ setIO (PFA v vRef as ls) i a = do
       ls' <- MV.replicateM n (newLog 1)
       MV.write as' i a
       return (PFA v0' vRef' as' ls')
+{-# SPECIALIZE setIO :: PFA Log a -> Int -> a -> IO (PFA Log a) #-}
 
-debugIO :: Show a => PFA a -> IO ()
+debugIO :: Show a => PFA Log a -> IO ()
 debugIO (PFA v vRef as ls) = do
   v' <- readIORef vRef
   as_ <- traverse (\i -> MV.read as i) [0 .. MV.length as - 1]
