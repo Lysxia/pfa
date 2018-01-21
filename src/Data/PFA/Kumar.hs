@@ -12,6 +12,7 @@ import qualified Data.Vector.Mutable as MV
 
 import Data.PFA.Internal.Log.Class
 import Data.PFA.Internal.Log.Vector
+import Data.PFA.Internal.Version
 
 data PFA log a = PFA !(Ticket Version) !(IORef Version) !(MV.IOVector a) !(MV.IOVector (log a))
 

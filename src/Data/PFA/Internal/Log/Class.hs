@@ -1,6 +1,11 @@
-module Data.PFA.Internal.Log.Class where
+module Data.PFA.Internal.Log.Class
+  ( Version
+  , zeroVersion
+  , nextVersion
+  , Logging(..)
+  ) where
 
-newtype Version = Version Word deriving (Eq, Ord, Show)
+import Data.PFA.Internal.Version
 
 class Logging log where
   newLog :: Int -> IO (log a)

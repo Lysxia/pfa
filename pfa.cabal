@@ -19,6 +19,7 @@ library
     Data.PFA.Kumar
     Data.PFA.Internal.Log.Class
     Data.PFA.Internal.Log.Vector
+    Data.PFA.Internal.Version
   build-depends:
     atomic-primops,
     vector,

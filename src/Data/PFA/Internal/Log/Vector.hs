@@ -5,10 +5,9 @@ import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as MU
 
 import Data.PFA.Internal.Log.Class
+import Data.PFA.Internal.Version
 
 type Size = Int
-
-newtype VersionVector = VersionVector (MU.IOVector Word)
 
 -- | Invariant: the two vectors have the same length (capacity)
 -- and the size is less than or equal to the capacity.
@@ -16,35 +15,25 @@ data Log a = Log !Size !VersionVector !(MV.IOVector a)
 
 newLog_ :: Int -> IO (Log a)
 newLog_ n =
-  Log 0 <$> (VersionVector <$> MU.new n) <*> MV.new n
+  Log 0 <$> newVV n <*> MV.new n
 
 pushLog_ :: Log a -> Version -> a -> IO (Log a)
-pushLog_ (Log size (VersionVector vs_) as) (Version v_) a = do
-  let push vs_ as = do
-        MU.unsafeWrite vs_ size v_ :: IO ()
+pushLog_ (Log size vs@(VersionVector vs_) as) v a = do
+  let push vs as = do
+        unsafeWriteVV vs size v :: IO ()
         MV.unsafeWrite as size a
-        return (Log (size + 1) (VersionVector vs_) as)
-  if size == MU.length vs_ then do
-    Log _ (VersionVector vs'_) as' <- newLog (size * 2)
-    MU.unsafeCopy (MU.unsafeSlice 0 size vs'_) vs_
+        return (Log (size + 1) vs as)
+  if size == lengthVV vs then do
+    Log _ vs'@(VersionVector vs_') as' <- newLog (size * 2)
+    MU.unsafeCopy (MU.unsafeSlice 0 size vs_') vs_
     MV.unsafeCopy (MV.unsafeSlice 0 size as') as
-    push vs'_ as'
+    push vs' as'
   else do
-    push vs_ as
+    push vs as
 
 getLog_ :: Log a -> Version -> IO (Maybe a)
-getLog_ (Log size (VersionVector vs) as) (Version v) = do
-  let search :: Int -> Int -> IO Int
-      search i j
-        | i == j = return i
-        | otherwise = do
-        v' <- MU.unsafeRead vs k
-        if v' < v then
-          search (k+1) j
-        else
-          search i k
-       where k = (i + j) `div` 2
-  i <- search 0 size
+getLog_ (Log size vs as) v = do
+  i <- searchVV vs 0 size v
   if i == size then
     return Nothing
   else
