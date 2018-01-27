@@ -1,7 +1,9 @@
 {- | Port of the implementation in the original paper by Kumar, Blelloch, Harper.
 -}
 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Data.PFA.Kumar where
 
 import Data.Atomics
@@ -44,6 +46,7 @@ getIO (PFA v vRef as ls) i = do
   else do
     l <- MV.unsafeRead ls i
     fromMaybe guess <$> getLog l v_
+{-# INLINE getIO #-}
 {-# SPECIALIZE getIO :: PFA LogV.Log a -> Int -> IO a #-}
 {-# SPECIALIZE getIO :: PFA LogC.Log a -> Int -> IO a #-}
 
@@ -60,7 +63,7 @@ renewFactor = 4
 -- > =
 -- > getIO v i
 setIO :: Logging log => PFA log a -> Int -> a -> IO (PFA log a)
-setIO (PFA v vRef as ls) i a = do
+setIO (PFA v vRef as ls) !i a = do
   let n = MV.length as
       v_@(Version v_') = peekTicket v
   if fromIntegral v_' == renewFactor * n then do
@@ -97,6 +100,7 @@ setIO (PFA v vRef as ls) i a = do
       ls' <- MV.replicateM n newLog
       MV.write as' i a
       return (PFA v0' vRef' as' ls')
+{-# INLINE setIO #-}
 {-# SPECIALIZE setIO :: PFA LogV.Log a -> Int -> a -> IO (PFA LogV.Log a) #-}
 {-# SPECIALIZE setIO :: PFA LogC.Log a -> Int -> a -> IO (PFA LogC.Log a) #-}
 

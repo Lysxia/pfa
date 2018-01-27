@@ -37,7 +37,11 @@ baselinePFA = PFADict
 
 -- The original implementation
 originalPFA :: Logging log => PFADict (PFA log a) a
-originalPFA = PFADict newIO getIO setIO
+originalPFA = PFADict
+  { new = \n a -> newIO n a
+  , get = \v i -> getIO v i
+  , set = \v i a -> setIO v i a
+  }
 {-# SPECIALIZE originalPFA :: PFADict (PFA LogV.Log a) a #-}
 {-# SPECIALIZE originalPFA :: PFADict (PFA LogC.Log a) a #-}
 {-# INLINE originalPFA #-}
@@ -85,11 +89,11 @@ runPFA
   -> IO A
 runPFA pfa mode n xs = do
   v0 <- new pfa n (A 0)  -- just a dummy value
-  let setThen k !a !i v =
+  let setThen k !a !i !v =
         if i < U.length xs then
           set pfa v (xs U.! i) (A i) >>= k a (i+1)
         else return a
-      getThen k !(A a) !i v =
+      getThen k !(A a) !i !v =
         if i < U.length xs then
           get pfa v (xs U.! i) >>= \(A a') -> k (A (a + a')) (i+1) v
         else return (A a)
