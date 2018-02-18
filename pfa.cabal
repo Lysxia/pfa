@@ -23,9 +23,10 @@ library
     Data.PFA.Internal.Version
   build-depends:
     atomic-primops,
+    concurrency,
     vector,
     base >= 4.9 && < 5
-  ghc-options: -Wall -Wno-name-shadowing
+  ghc-options: -Wall -Wno-name-shadowing -ddump-simpl -dsuppress-all
   default-language:    Haskell2010
 
 test-suite simple-test
@@ -37,11 +38,27 @@ test-suite simple-test
     base
   default-language: Haskell2010
 
+test-suite concurrent-test
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: concurrent.hs
+  build-depends:
+    pfa,
+    containers,
+    QuickCheck,
+    quickcheck-state-machine,
+    quickcheck-with-counterexamples,
+    stm,
+    transformers,
+    base
+  ghc-options: -Wall -Wno-name-shadowing
+  default-language: Haskell2010
+
 benchmark simple-bench
   type: exitcode-stdio-1.0
   hs-source-dirs: bench
   main-is: simple-bench.hs
-  ghc-options: -O2
+  ghc-options: -O2 -ddump-simpl -dsuppress-all
   build-depends:
     pfa,
     containers,
