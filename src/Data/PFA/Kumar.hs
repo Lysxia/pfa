@@ -2,6 +2,7 @@
 -}
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.PFA.Kumar where
@@ -38,8 +39,13 @@ newIO n a = do
 -- | @getIO v i@: Get the value at index @i@.
 getIO :: Logging log => PFA log a -> Int -> IO a
 getIO (PFA v vRef as ls) i = do
+#ifndef MUTANT_GETIO
   guess <- MV.read as i  -- Read before comparing versions
-  v' <- readIORef vRef
+  v' <- readIORef vRef   --
+#else
+  v' <- readIORef vRef   --
+  guess <- MV.read as i  -- "Oops"
+#endif
   let v_ = peekTicket v
   if v_ == v' then
     return guess
@@ -79,8 +85,13 @@ setIO (PFA v vRef as ls) !i a = do
       a' <- MV.read as i
       l <- MV.unsafeRead ls i
       l' <- pushLog l v_ a'
-      MV.unsafeWrite ls i l'
+#ifndef MUTANT_SETIO
+      MV.unsafeWrite ls i l' --
       MV.unsafeWrite as i a  -- In this order!
+#else
+      MV.unsafeWrite as i a  -- "Oops"
+      MV.unsafeWrite ls i l' --
+#endif
       return (PFA v' vRef as ls)
     else do
       vRef' <- newIORef (Version 0)

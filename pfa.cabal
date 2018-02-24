@@ -13,6 +13,16 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+flag mutant-getIO
+  description: Testing mutant
+  default:     False
+  manual:      True
+
+flag mutant-setIO
+  description: Testing mutant
+  default:     False
+  manual:      True
+
 library
   hs-source-dirs:      src
   exposed-modules:
@@ -21,6 +31,10 @@ library
     Data.PFA.Internal.Log.Chunks
     Data.PFA.Internal.Log.Vector
     Data.PFA.Internal.Version
+  if flag(mutant-getIO)
+    cpp-options: -DMUTANT_GETIO
+  if flag(mutant-setIO)
+    cpp-options: -DMUTANT_SETIO
   build-depends:
     atomic-primops,
     concurrency,
@@ -36,6 +50,19 @@ test-suite simple-test
   build-depends:
     pfa,
     base
+  default-language: Haskell2010
+
+test-suite concurrent-unit-test
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: concurrent-unit.hs
+  build-depends:
+    ascii-progress,
+    concurrent-output,
+    stm >= 2.4.2,
+    pfa,
+    base
+  ghc-options: -threaded -with-rtsopts -N4
   default-language: Haskell2010
 
 test-suite concurrent-test
